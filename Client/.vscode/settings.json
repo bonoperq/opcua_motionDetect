@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "client_config_default.h": "c",
+        "securitypolicy_default.h": "c",
+        "stdlib.h": "c",
+        "securitypolicy.h": "c",
+        "accesscontrol_default.h": "c"
+    }
+}
