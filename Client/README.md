@@ -12,5 +12,5 @@ make rules
 ```
 
 ### Versions utilisées
-OpenSSL 3.0.11 19 Sep 2023 (Library: OpenSSL 3.0.11 19 Sep 2023)
-Open62541 v1.3.9 (Nov 30, 2023)
+- OpenSSL 3.0.11 19 Sep 2023 (Library: OpenSSL 3.0.11 19 Sep 2023)
+- Open62541 v1.3.9 (Nov 30, 2023)
