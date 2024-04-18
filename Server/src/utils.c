@@ -27,6 +27,40 @@ UA_ByteString loadFile(const char *const path) {
     return fileContents;
 }
 
+UA_ByteString loadFileTail(const char *filename) {
+    int tail = 30;
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        printf("Failed to open file %s\n", filename);
+        return UA_BYTESTRING_NULL;
+    }
+    fseek(file, -tail, SEEK_END); // Move to 30 bytes before the end of file
+    long fileSize = ftell(file);
+    if (fileSize < tail) {
+        printf("File %s is too small\n", filename);
+        fclose(file);
+        return UA_BYTESTRING_NULL;
+    }
+    fseek(file, -tail, SEEK_END); // Move to the correct position again
+    UA_Byte *buffer = (UA_Byte *)malloc(tail * sizeof(UA_Byte));
+    if (!buffer) {
+        printf("Memory allocation failed\n");
+        fclose(file);
+        return UA_BYTESTRING_NULL;
+    }
+    size_t bytesRead = fread(buffer, sizeof(UA_Byte), tail, file);
+    fclose(file);
+    if (bytesRead != tail) {
+        printf("Failed to read %d bytes from file %s\n", tail, filename);
+        free(buffer);
+        return UA_BYTESTRING_NULL;
+    }
+    UA_ByteString byteString = UA_BYTESTRING_NULL;
+    byteString.length = tail;
+    byteString.data = buffer;
+    return byteString;
+}
+
 void *watch_file(void *args) {
     struct ThreadArgs *targs = (struct ThreadArgs *) args;
 

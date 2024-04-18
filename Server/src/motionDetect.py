@@ -4,6 +4,7 @@ import picamera
 from picamera.array import PiMotionAnalysis
 from time import sleep
 from datetime import datetime
+import shutil
 
 class GestureDetector(PiMotionAnalysis):
     QUEUE_SIZE = 10 # the number of consecutive frames to analyze
@@ -29,6 +30,16 @@ class GestureDetector(PiMotionAnalysis):
         except FileNotFoundError:
             return 0
 
+    def check_disk_space(self, path, required_space):
+        disk_usage = shutil.disk_usage(path)
+        print(disk_usage)
+        return disk_usage.free >= required_space
+
+    def remove_old_images(self, directory, num_images):
+        images = sorted(os.listdir(directory))
+        for i in range(num_images):
+            if images:
+                os.remove(os.path.join(directory, images[i]))
 
     def analyze(self, a):
         # Roll the queues and overwrite the first element with a new
@@ -53,18 +64,28 @@ class GestureDetector(PiMotionAnalysis):
         if movement != self.last_move:
             self.last_move = movement
             if movement: 
+                images_directory = f"../data/images/"
+                image_name = f"img_{self.line_nb}.jpg"
+                required_space = 1000000000 # 1Go
+
+                if not self.check_disk_space(images_directory, required_space):
+                    self.remove_old_images(images_directory, 50)
+                    print("Espace disque insuffisant. Suppressions de quelques images.")
+
+                image_path = os.path.join(images_directory, image_name)
+                self.camera.capture(image_path)
                 print(movement)
                 print("x :", self.x_queue[0], "y :", self.y_queue[0])
                 current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 with open(self.output, 'a') as f:
-                    f.write(f"{self.line_nb};{current_time}\n")
-                    self.line_nb+=1
-
+                    f.write(f"{self.line_nb};{current_time};{image_name}\n")
+                    self.line_nb += 1
 
 with picamera.PiCamera(resolution='VGA', framerate=24) as camera:
     with GestureDetector(camera) as detector:
         camera.start_recording(
             os.devnull, format='h264', motion_output=detector)
+        camera.start_preview()
         try:
             while True:
                 camera.wait_recording(5)

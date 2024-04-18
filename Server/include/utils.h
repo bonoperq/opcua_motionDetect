@@ -9,6 +9,7 @@
 #include <open62541/config.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pki_default.h>
 #include <open62541/server.h>
 
@@ -21,6 +22,7 @@ struct ThreadArgs {
 };
 
 UA_ByteString loadFile(const char *const path);
+UA_ByteString loadFileTail(const char *filename);
 void *watch_file(void *args);
 
 #endif /* UTILS_H*/
