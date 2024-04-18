@@ -6,7 +6,7 @@ SRC_DIR = src
 CLIENT_SRC = $(SRC_DIR)/client.c
 UTILS_SRC = $(SRC_DIR)/utils.c
 CLIENT_BIN = $(BIN_DIR)/client
-SERVER_IP = 192.168.247.240
+SERVER_IP = 192.168.247.97
 
 .PHONY: all clean rules
 

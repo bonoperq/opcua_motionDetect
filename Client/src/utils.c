@@ -27,30 +27,30 @@ UA_ByteString loadFile(const char *const path) {
     return fileContents;
 }
 
-UA_StatusCode read_value(UA_Client *client) {
-    /* Read the value attribute of the node. UA_Client_readValueAttribute is a
-     * wrapper for the raw read service available as UA_Client_Service_read. */
-    UA_Variant value; /* Variants can hold scalar values and arrays of any type */
-    UA_Variant_init(&value);
-    UA_StatusCode status = UA_Client_readValueAttribute(client, UA_NODEID_STRING(1, "byteString"), &value);
-    if (status == UA_STATUSCODE_GOOD &&
-       UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_BYTESTRING])) {
-	    
-        UA_ByteString *byteString = (UA_ByteString*)value.data;
-        /* Open file for writing */
-        FILE *file = fopen("./data/get_data.txt","w");
-        if (file==NULL) {
-            printf("Failed to open file for writing.\n");
-            return UA_STATUSCODE_BAD;
-        }
+FILE* openBinaryImage(char *imageName) {
 
-        /* Write byteString into the file */
-        size_t bytesWritten = fwrite(byteString->data, 1, byteString->length, file);
-        if (bytesWritten != byteString->length) {
-            printf("Failed to write all data into the file.\n");
-            return UA_STATUSCODE_BAD;
-        }
-        fclose(file);
+    char *dotPosition = strchr(imageName, '.');
+    if (!dotPosition) {
+        return NULL;
     }
-    return UA_STATUSCODE_GOOD;
+
+    size_t rootLength = dotPosition - imageName;
+
+    char *imageRoot = malloc(rootLength + 1);
+    if (!imageRoot) {
+        return NULL;
+    }
+
+    strncpy(imageRoot, imageName, rootLength);
+    imageRoot[rootLength] = '\0'; // Terminer la chaîne avec le caractère nul
+
+    // Ouvrir le fichier avec le nom imageRoot
+    char filePath[100]; // Assurez-vous que la taille est suffisante pour contenir le chemin complet
+    snprintf(filePath, sizeof(filePath), "./data/images/%s.bin", imageRoot);
+    FILE *file = fopen(filePath, "wb");
+
+    // Libérer la mémoire allouée pour imageRoot
+    free(imageRoot);
+
+    return file;
 }

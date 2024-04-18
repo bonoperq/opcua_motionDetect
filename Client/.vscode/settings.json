@@ -4,6 +4,9 @@
         "securitypolicy_default.h": "c",
         "stdlib.h": "c",
         "securitypolicy.h": "c",
-        "accesscontrol_default.h": "c"
+        "accesscontrol_default.h": "c",
+        "client_highlevel.h": "c",
+        "client.h": "c",
+        "certificategroup_default.h": "c"
     }
 }
