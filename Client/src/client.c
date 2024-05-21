@@ -1,5 +1,7 @@
 #include "../include/utils.h"
 
+UA_Boolean running = true;
+
 UA_StatusCode read_value(UA_Client *client) {
     /* Read the value attribute of the node. UA_Client_readValueAttribute is a
      * wrapper for the raw read service available as UA_Client_Service_read. */
@@ -25,9 +27,8 @@ UA_StatusCode read_value(UA_Client *client) {
         }
         fclose(file);
     }
-    return UA_STATUSCODE_GOOD;
+    return status;
 }
-
 
 UA_StatusCode getMultipleImagesFromServer(UA_Client *client, char **imagesName, size_t numImages) {
     // Call the GetMultipleImages method on the server
@@ -111,8 +112,50 @@ UA_StatusCode getMultipleImagesFromServer(UA_Client *client, char **imagesName, 
     return UA_STATUSCODE_GOOD;
 }
 
+static void
+deleteSubscriptionCallback(UA_Client *client, UA_UInt32 subscriptionId, void *subscriptionContext) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "Subscription Id %u was deleted", subscriptionId);
+}
+
+static void
+handler_printLastData(UA_Client *client, UA_UInt32 subId, void *subContext,
+                      UA_UInt32 monId, void *monContext, UA_DataValue *value) {
+    if (UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_BYTESTRING])) {
+        UA_ByteString msg = *(UA_ByteString *)value->value.data;
+        
+        if (msg.length > 0) {
+            size_t start = msg.length-1; // Start before last "\n"
+            
+            while (start > 0 && msg.data[start-1] != '\n') {
+                start--;
+            }
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "New data: %s", &msg.data[start]);
+        } else {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "No data");
+        }
+    }
+}
+
+static void stopHandler(int sign) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received Ctrl-C, press Enter to disconnect");
+    running = 0;
+}
+
+void *runClient(void *args) {
+    UA_Client *client = (UA_Client *)args;
+    while (running) {   
+        UA_Client_run_iterate(client, 100);
+    }
+    return NULL;
+}
+
 int main(int argc, char *argv[])
 {
+    signal(SIGINT, stopHandler); /* catches ctrl-c */
+
     if (argc !=2) {
 	    printf("Usage: %s <ip>\n", argv[0]);
 	    return EXIT_FAILURE;
@@ -183,71 +226,112 @@ int main(int argc, char *argv[])
         printf("Connected to the server.\n");
     }
 
-    while (1) {
-        printf("\nChoose an option:\n");
-        printf("1. Get data file\n");
-        printf("2. Get Images\n");
-        printf("3. Disconnect\n");
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+        NULL, NULL, deleteSubscriptionCallback);
 
-        int option;
-        if (scanf("%d", &option) != 1) {
-            printf("Invalid input. Please enter a number.\n");
-            while (getchar() != '\n'); // Clear input buffer
-            continue;
-        }
+    retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD)
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Create subscription succeeded, id %u", response.subscriptionId);
+    else
+        return retval;
 
-        switch (option) {
-            case 1: {
-                retval = read_value(client);
-                if (retval == UA_STATUSCODE_GOOD) {
-                    printf("\nFile successfully read\n\n");
-                }
-                else {
-                    printf("\nEnable to read file\n\n");
-                }
-                break;
+    /* Add a MonitoredItem */
+    UA_NodeId target =
+        UA_NODEID_STRING(1, "motionDetectLog");
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(target);
+
+    UA_MonitoredItemCreateResult monResponse =
+        UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                                UA_TIMESTAMPSTORETURN_BOTH, monRequest,
+                                                NULL, handler_printLastData, NULL);
+
+    if(monResponse.statusCode == UA_STATUSCODE_GOOD)
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Monitoring log file', id %u",
+                    monResponse.monitoredItemId);
+
+    /* Thread for monitoring */
+    pthread_t clientThread;
+    if (pthread_create(&clientThread, NULL, runClient, (void *)client) !=0) {
+        printf("Error while creating thread\n");
+        return EXIT_FAILURE;
+    }
+
+    /* Endless loop runAsync */
+    while(running) {
+            printf("\nChoose an option:\n");
+            printf("1. Get log file\n");
+            printf("2. Get Images\n");
+            printf("3. Disconnect\n");
+
+            int option;
+            if (scanf("%d", &option) != 1) {
+                printf("Invalid input. Please enter a number.\n");
+                while (getchar() != '\n'); // Clear input buffer
+                continue;
             }
-            case 2: {
-                size_t numImages;
-                printf("Enter the number of images: ");
-                if (scanf("%zu", &numImages) != 1 || numImages < 1) {
-                    printf("Invalid input. Please enter a valid number.\n");
-                    while (getchar() != '\n'); // Clear input buffer
-                    continue;
-                }
-                char **imageNames = (char **)malloc(numImages * sizeof(char *));
-                if (!imageNames) {
-                    printf("Failed to allocate memory.\n");
+
+            switch (option) {
+                case 1: {
+                    retval = read_value(client);
+                    if (retval == UA_STATUSCODE_GOOD) {
+                        printf("\nFile successfully read\n\n");
+                    }
+                    else {
+                        printf("\nUnable to read file\n\n");
+                    }
                     break;
                 }
-                printf("Enter image names separated by space:\n");
-                for (size_t i = 0; i < numImages; ++i) {
-                    imageNames[i] = (char *)malloc(100 * sizeof(char));
-                    if (!imageNames[i]) {
+                case 2: {
+                    size_t numImages;
+                    printf("Enter the number of images: ");
+                    if (scanf("%zu", &numImages) != 1 || numImages < 1) {
+                        printf("Invalid input. Please enter a valid number.\n");
+                        while (getchar() != '\n'); // Clear input buffer
+                        continue;
+                    }
+                    char **imageNames = (char **)malloc(numImages * sizeof(char *));
+                    if (!imageNames) {
                         printf("Failed to allocate memory.\n");
                         break;
                     }
-                    scanf("%99s", imageNames[i]);
+                    printf("Enter image names separated by space:\n");
+                    for (size_t i = 0; i < numImages; ++i) {
+                        imageNames[i] = (char *)malloc(100 * sizeof(char));
+                        if (!imageNames[i]) {
+                            printf("Failed to allocate memory.\n");
+                            break;
+                        }
+                        scanf("%99s", imageNames[i]);
+                    }
+                    UA_StatusCode status = getMultipleImagesFromServer(client, imageNames, numImages);
+                    if (status != UA_STATUSCODE_GOOD) {
+                        printf("Failed to get multiple images from server. StatusCode: %s\n", UA_StatusCode_name(status));
+                    }
+                    for (size_t i = 0; i < numImages; ++i) {
+                        free(imageNames[i]);
+                    }
+                    free(imageNames);
+                    break;
                 }
-                UA_StatusCode status = getMultipleImagesFromServer(client, imageNames, numImages);
-                if (status != UA_STATUSCODE_GOOD) {
-                    printf("Failed to get multiple images from server. StatusCode: %s\n", UA_StatusCode_name(status));
-                }
-                for (size_t i = 0; i < numImages; ++i) {
-                    free(imageNames[i]);
-                }
-                free(imageNames);
-                break;
+                case 3:
+                    running=0;
+                    break;
+
+                default:
+                    printf("Invalid option. Please choose a valid option.\n");
             }
-            case 3:
-                UA_Client_disconnect(client);
-                printf("Disconnected from the server.\n");
-                UA_Client_delete(client);
-                return EXIT_SUCCESS;
-            default:
-                printf("Invalid option. Please choose a valid option.\n");
-        }
     }
+
+    pthread_join(clientThread,NULL);
+
+    /* Clean up */
+    UA_Client_disconnect(client);
+    printf("Disconnected from the server.\n");
+    UA_Client_delete(client);
 
     return EXIT_SUCCESS;
 }
