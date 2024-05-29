@@ -25,7 +25,7 @@ clean:
 
 rules:
 	@echo "Avaible rules:"
-	@echo " all		: Build the server executables"
-	@echo "	run		: Build then run the server"
+	@echo " all	: Build the server executables"
+	@echo " run	: Build then run the server"
 	@echo " clean	: Clean up generated files"
 	@echo " rules	: Show available rules"

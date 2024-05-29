@@ -22,13 +22,15 @@ class GestureDetector(PiMotionAnalysis):
         try:
             with open(self.output,'r') as f:
                 lines = f.readlines()
-                if lines:
-                    nb = int(lines[-1].split(';')[0])+1
-                    return nb
+                if lines:  # Vérifie si la liste lines est vide
+                    last_line = lines[-1].strip()
+                    nb = int(last_line.split(';')[0]) + 1
                 else:
-                    return 0
+                    nb = 0
+            return nb
         except FileNotFoundError:
             return 0
+
 
     def check_disk_space(self, path, required_space):
         disk_usage = shutil.disk_usage(path)

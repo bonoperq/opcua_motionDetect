@@ -311,6 +311,7 @@ int main(int argc, char** argv)
     }
 
     UA_NodeId nodeId = addServerData(server);
+    UA_NodeId monitoringNodeId;
     addDataMonitoring(server);
     UA_NodeId methodDirectoryNodeId = addMethodDirectory(server);
     addGetImageMethod(server, methodDirectoryNodeId);
