@@ -15,6 +15,14 @@ Pour voir les commandes disponibles, exécutez la commande suivante dans le rép
 make rules
 ```
 
+Lorsque le client se connecte, 4 options s'offrent à lui :
+1. Get log file : Permet de mettre à jour le fichier motionDetectLog du serveur jusqu'au Client.
+2. Get Images : En entrant le nombre d'images ainsi que leurs noms séparés par des espaces, ce fichier vient récupérer les images voulues si elles existent sur le serveur, pour les mettre dans le repertoire data/images/.
+3. Start monitoring : Après cette commande, le client passe en mode monitoring et affiche en continue les dernières lignes du fichier de log du server pour informer des dernièrs mouvements détectés. Pour en sortir, il suffit d'appuyer sur Ctrl-C.
+4. Disconnect : Cette touche permet de déconnecter le client.
+
+Après les commandes 1 ou 2, si des mouvements ont été detectés, le client voit les nouveaux logs sur son terminal. C'est parceque le monitoring du fichier de log a lieu en continue mais ne s'affiche pas quand le client est dans le menu pour ne pas perturber l'affichage.
+
 #### Versions utilisées
 OpenSSL 3.0.11 19 Sep 2023 (Library: OpenSSL 3.0.11 19 Sep 2023)
 Open62541 v1.3.9 (Nov 30, 2023)

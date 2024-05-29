@@ -31,7 +31,6 @@ UA_StatusCode read_value(UA_Client *client) {
 }
 
 UA_StatusCode getMultipleImagesFromServer(UA_Client *client, char **imagesName, size_t numImages) {
-    // Call the GetMultipleImages method on the server
     UA_Variant input;
 
     // Prepare an array of UA_String for input
@@ -75,7 +74,6 @@ UA_StatusCode getMultipleImagesFromServer(UA_Client *client, char **imagesName, 
         }
     }
 
-    
     // Write each byte string into a separate file
     for (size_t i = 0; i < numImages; ++i) {
         // Extract the byte string from the output variant
@@ -140,16 +138,8 @@ handler_printLastData(UA_Client *client, UA_UInt32 subId, void *subContext,
 }
 
 static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received Ctrl-C, press Enter to disconnect");
-    running = 0;
-}
-
-void *runClient(void *args) {
-    UA_Client *client = (UA_Client *)args;
-    while (running) {   
-        UA_Client_run_iterate(client, 100);
-    }
-    return NULL;
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received Ctrl-C, exit from monitoring");
+    running = false;
 }
 
 int main(int argc, char *argv[])
@@ -226,6 +216,7 @@ int main(int argc, char *argv[])
         printf("Connected to the server.\n");
     }
 
+    /* Create subscription */
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
         NULL, NULL, deleteSubscriptionCallback);
@@ -253,19 +244,13 @@ int main(int argc, char *argv[])
                     "Monitoring log file', id %u",
                     monResponse.monitoredItemId);
 
-    /* Thread for monitoring */
-    pthread_t clientThread;
-    if (pthread_create(&clientThread, NULL, runClient, (void *)client) !=0) {
-        printf("Error while creating thread\n");
-        return EXIT_FAILURE;
-    }
-
     /* Endless loop runAsync */
-    while(running) {
+    while(1) {
             printf("\nChoose an option:\n");
             printf("1. Get log file\n");
             printf("2. Get Images\n");
-            printf("3. Disconnect\n");
+            printf("3. Start monitoring\n");
+            printf("4. Disconnect\n");
 
             int option;
             if (scanf("%d", &option) != 1) {
@@ -318,20 +303,23 @@ int main(int argc, char *argv[])
                     break;
                 }
                 case 3:
-                    running=0;
+                    running = true;
+                    while (running) {   
+                        UA_Client_run_iterate(client, 100);
+                    }
                     break;
+
+                case 4:
+                    /* Clean up */
+                    UA_Client_disconnect(client);
+                    printf("Disconnected from the server.\n");
+                    UA_Client_delete(client);
+
+                    return EXIT_SUCCESS;
 
                 default:
                     printf("Invalid option. Please choose a valid option.\n");
             }
     }
 
-    pthread_join(clientThread,NULL);
-
-    /* Clean up */
-    UA_Client_disconnect(client);
-    printf("Disconnected from the server.\n");
-    UA_Client_delete(client);
-
-    return EXIT_SUCCESS;
 }
